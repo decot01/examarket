@@ -4,6 +4,7 @@ from aiogram.utils import executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
+from server import keep_alive
 from pyowm import OWM
 from pyowm.utils import config
 from pyowm.utils import timestamps
@@ -241,8 +242,8 @@ class MyBot(FSMContext,StatesGroup):
         # Запуск сервера
         executor.start_polling(self.dp, skip_updates=True)
 
-
 if __name__ == '__main__':
     bot = MyBot()
     bot.start()
     bot.addplace()
+    keep_alive()
