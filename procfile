@@ -1,2 +1,1 @@
-worker: python botdevportal.py
-worker: python botuserportal.py
+worker: python main.py

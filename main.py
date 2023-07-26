@@ -25,7 +25,8 @@ import time
 # Connect to the database
 conn = sqlite3.connect('marketdb')
 cursor = conn.cursor()
-
+printed_lines = []
+last_line_index = 0
 # Execute the SQL statements
 cursor.execute("PRAGMA foreign_keys = 0;")
 
@@ -59,7 +60,7 @@ class MyBot(FSMContext,StatesGroup):
 
     #инициализация бота
     def __init__(self):
-        self._TOKEN = '6195052643:AAHX-E_PECxDoh_OR9gZ5_YNTH8tYwOX4aY'#токен
+        self._TOKEN = '6566069092:AAFABgofnFkx_tT0GQvTik06ZvTnD_yCsH8'#токен
         self.bot = Bot(self._TOKEN)
         self.dp = Dispatcher(bot=self.bot, storage=MemoryStorage())
         self.memory = MemoryStorage()
@@ -67,12 +68,23 @@ class MyBot(FSMContext,StatesGroup):
     def start(self):
         #элементы клавиатуры (не к регистрации) не инлайн
         help_button = KeyboardButton('/help')
+        faq_button = KeyboardButton('/faq')
         info_button = KeyboardButton('/info')
         add_button = KeyboardButton('/addplace')
+        price_button = KeyboardButton('/checkplaces')        
         main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-        main_keyboard.add(help_button,info_button, add_button)
+        main_keyboard.add(help_button,info_button, add_button, price_button, faq_button)
+        inline_btn_1 = InlineKeyboardButton('report', callback_data='report')
+        inline_btn_2 = InlineKeyboardButton('rep-', callback_data='repdw')
+        inline_btn_3 = InlineKeyboardButton('rep+', callback_data='repup')
+        inline_kb1 = InlineKeyboardMarkup().add(inline_btn_1, inline_btn_2, inline_btn_3)
+
+
         #команды
         @self.dp.message_handler(commands=['start'])
+        async def hello(message: types.message):
+            await message.answer('привет напиши /help что бы узнать список команд.')
+        @self.dp.message_handler(commands=['faq'])
         async def hello(message: types.message):
             await message.answer('привет напиши /help что бы узнать список команд.')
 
@@ -88,17 +100,78 @@ class MyBot(FSMContext,StatesGroup):
         async def hello(message: types.message):
             await message.answer('мы первый марркетплейс на экзархии в обход магазину', reply_markup=main_keyboard)
 
+
+        @self.dp.message_handler(commands=['help'])
+        async def hello(message: types.message):
+            await message.answer('что умеет этот бот???\n/checkplaces - начать смотреть карточки и показать следующую.', reply_markup=main_keyboard)
+    
+        @self.dp.callback_query_handler(lambda c: c.data == 'report')
+        async def process_callback_button1(callback_query: types.CallbackQuery):
+            cursor.execute("UPDATE places SET placereports = placereports + 1")
+            conn.commit()
+            await callback_query.answer()
+            await callback_query.message.answer('Репорт отправлен')
+
+        @self.dp.callback_query_handler(lambda c: c.data == 'repup')
+        async def process_callback_button2(callback_query: types.CallbackQuery):
+            cursor.execute("UPDATE places SET placeraiting = placeraiting + 1")
+            conn.commit()
+            await callback_query.answer()
+            await callback_query.message.answer('Репутация карточки повышена')
+
+        @self.dp.callback_query_handler(lambda c: c.data == 'repdw')
+        async def process_callback_button3(callback_query: types.CallbackQuery):
+            cursor.execute("UPDATE places SET placeraiting = placeraiting - 1")
+            conn.commit()
+            await callback_query.answer()
+            await callback_query.message.answer('Репутация карточки понижена')
+
+
+        @self.dp.message_handler(commands=['checkplaces'])
+        async def get_random_line(message: types.Message):
+            global last_line_index
+
+            cursor.execute("SELECT placename, placeowner, placething, placedescription, placeraiting, placeclass FROM places")
+            all_lines = cursor.fetchall()
+
+            available_lines = [line for line in all_lines if line[0] not in printed_lines]
+
+            if available_lines:
+                if last_line_index >= len(available_lines):
+                    last_line_index = 0
+
+                next_line = available_lines[last_line_index]
+
+                line_message = f"Place Name: {next_line[0]}\nPlace Owner: {next_line[1]}\nPlace Thing: {next_line[2]}\nPlace Description: {next_line[3]}\nPlace Rating: {next_line[4]}\nPlace Class: {next_line[5]}"
+
+                await message.answer(line_message, reply_markup=inline_kb1)
+
+                last_line_index += 1
+            else:
+                await message.answer("No more lines available.")
+
     def addplace(self):
         menu_button = KeyboardButton('/menu')
         keyboard_menu = ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
         keyboard_menu.add(menu_button)
+        storred = InlineKeyboardButton('купленно в магазине', callback_data='storred')
+        unstorred = InlineKeyboardButton('не купленно в магазине', callback_data='unstorred')
+        storredkb = InlineKeyboardMarkup().add(storred, unstorred )
 
+        @self.dp.callback_query_handler(text='storred')
+        async def send_message(callback_query: types.CallbackQuery):
+        # Отправляем сообщение от пользователя
+            await callback_query.message.answer('купленно в магазине')
+        @self.dp.callback_query_handler(text='unstorred')
+        async def send_message(callback_query: types.CallbackQuery):
+        # Отправляем сообщение от пользователя
+            await callback_query.message.answer('не купленно в магазине')
         # Обработчик команды "/addplace"
         @self.dp.message_handler(Command('addplace'))
         async def start_addplace(message: types.Message):
             await MyBot.PLACE_NAME.set()
-            await message.answer('Введите название объекта:')
-
+            await message.answer('Введите название карточки:')
+    
         @self.dp.message_handler(state=MyBot.PLACE_NAME)
         async def process_name(message: types.Message, state: FSMContext):
             async with state.proxy() as data:
@@ -118,7 +191,7 @@ class MyBot(FSMContext,StatesGroup):
             async with state.proxy() as data:
                 data['placedescription'] = message.text
             await MyBot.PLACE_CLASS.set()
-            await message.answer('Введите класс товара (купленное в магазине или нет)')
+            await message.answer('Введите класс товара (купленное в магазине или нет)',reply_markup=storredkb)
 
         @self.dp.message_handler(state=MyBot.PLACE_CLASS)
         async def process_class(message: Message, state: FSMContext):
