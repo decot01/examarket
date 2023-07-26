@@ -27,25 +27,33 @@ conn = sqlite3.connect('marketdb')
 cursor = conn.cursor()
 printed_lines = []
 last_line_index = 0
-# Execute the SQL statements
-cursor.execute("PRAGMA foreign_keys = 0;")
 
-cursor.execute("CREATE TABLE sqlitestudio_temp_table AS SELECT * FROM places;")
+# Disable foreign key constraints
+cursor.execute("PRAGMA foreign_keys = 0")
 
-cursor.execute("DROP TABLE places;")
+# Create a temporary table and copy data from the 'places' table
+cursor.execute("CREATE TABLE sqlitestudio_temp_table AS SELECT * FROM places")
 
-cursor.execute("CREATE TABLE places (placename TEXT, placeowner TEXT, placething TEXT, placedescription TEXT, placeraiting INTEGER, placereports INTEGER, placeclass TEXT);")
+# Drop the 'places' table
+cursor.execute("DROP TABLE places")
 
-cursor.execute("INSERT INTO places (placename, placeowner, placething, placedescription, placeraiting, placereports, placeclass) SELECT placename, placeowner, placething, placedescription, placeraiting, placereports, placeclass FROM sqlitestudio_temp_table;")
+# Create a new 'places' table with the desired schema
+cursor.execute("CREATE TABLE places (placename TEXT, placeowner TEXT, placething TEXT, placedescription TEXT, placeraiting INTEGER, placereports INTEGER, placeclass TEXT, placeid INTEGER UNIQUE)")
 
-cursor.execute("DROP TABLE sqlitestudio_temp_table;")
+# Insert the data from the temporary table into the new 'places' table
+cursor.execute("""
+    INSERT INTO places (placename, placeowner, placething, placedescription, placeraiting, placereports, placeclass)
+    SELECT placename, placeowner, placething, placedescription, placeraiting, placereports, placeclass
+    FROM sqlitestudio_temp_table
+""")
 
-cursor.execute("PRAGMA foreign_keys = 1;")
+# Drop the temporary table
+cursor.execute("DROP TABLE sqlitestudio_temp_table")
 
-# Commit the changes to the database
+# Enable foreign key constraints
+cursor.execute("PRAGMA foreign_keys = 1")
+
 conn.commit()
-
-# Close the connection
 conn.close()
 
 
@@ -105,7 +113,7 @@ class MyBot(FSMContext,StatesGroup):
         @self.dp.message_handler(commands=['help'])
         async def hello(message: types.message):
             await message.answer('что умеет этот бот???\n/checkplaces - начать смотреть карточки и показать следующую.', reply_markup=main_keyboard)
-    
+
         @self.dp.callback_query_handler(lambda c: c.data == 'report')
         async def process_callback_button1(callback_query: types.CallbackQuery):
             conn = sqlite3.connect("marketdb")
@@ -187,21 +195,21 @@ class MyBot(FSMContext,StatesGroup):
         @self.dp.message_handler(Command('addplace'))
         async def start_addplace(message: types.Message):
             await MyBot.PLACE_NAME.set()
-            await message.answer('Введите название карточки:')
+            await message.answer('Введите название карточки:', reply_markup=ReplyKeyboardRemove())
     
         @self.dp.message_handler(state=MyBot.PLACE_NAME)
         async def process_name(message: types.Message, state: FSMContext):
             async with state.proxy() as data:
                 data['placename'] = message.text
             await MyBot.PLACE_THING.set()
-            await message.answer('Введите что вы продаете (1 товар):')
+            await message.answer('Введите что вы продаете (1 товар):', reply_markup=ReplyKeyboardRemove())
 
         @self.dp.message_handler(state=MyBot.PLACE_THING)
         async def process_thing(message: Message, state: FSMContext):
             async with state.proxy() as data:
                 data['placething'] = message.text
             await MyBot.PLACE_DESCRIPTION.set()
-            await message.answer('Введите описание товара')
+            await message.answer('Введите описание товара', reply_markup=ReplyKeyboardRemove())
 
         @self.dp.message_handler(state=MyBot.PLACE_DESCRIPTION)
         async def process_description(message: Message, state: FSMContext):
@@ -215,7 +223,7 @@ class MyBot(FSMContext,StatesGroup):
             async with state.proxy() as data:
                 data['placeclass'] = message.text
             await MyBot.PLACE_OWNER.set()
-            await message.answer('Введите ник на экзархии и в тг')
+            await message.answer('Введите ник на экзархии и в тг', reply_markup=ReplyKeyboardRemove())
 
         @self.dp.message_handler(state=MyBot.PLACE_OWNER)
         async def process_owner(message: Message, state: FSMContext):
@@ -229,21 +237,34 @@ class MyBot(FSMContext,StatesGroup):
                 placeclass = data['placeclass']
                 placeowner = data['placeowner']
 
-                # Open the database connection
-                conn = sqlite3.connect('marketdb')
+                            # Open the database connection
+            # Open the database connection
+            conn = sqlite3.connect('marketdb')
 
-                # Insert the data into the database
-                conn.execute("INSERT INTO places (placename, placething, placedescription, placeclass, placeowner) VALUES (?, ?, ?, ?, ?)",
-                            (placename, placething, placedescription, placeclass, placeowner))
-                conn.commit()
+            # Get the last placeid value
+            cursor = conn.cursor()
+            cursor.execute("SELECT MAX(placeid) FROM places")
+            last_placeid = cursor.fetchone()[0]
 
-                # Close the database connection
-                conn.close()
+            if last_placeid is not None:
+                new_placeid = last_placeid + 1
+            else:
+                new_placeid = 1
 
-                await message.answer(f"Ваша анкета успешно принята!\nВот ваши данные:\nназвание карточки: {placename}\nобъект продажи: {placething}\nописание: {placedescription}\класс: {placeclass}\nЧтобы выйти из заполнения анкеты пропишите любой символ, например ! и отправьте команду /menu", reply_markup=keyboard_menu)
-                print("человек завершил выставление товара! Время:", time.ctime())
+            # Insert the data into the database
+            conn.execute("INSERT INTO places (placeid, placename, placething, placedescription, placeclass, placeowner) VALUES (?, ?, ?, ?, ?, ?)",
+                        (new_placeid, placename, placething, placedescription, placeclass, placeowner))
+            conn.commit()
+
+            # Close the database connection
+            conn.close()
+
+            await message.answer(f"Ваша анкета успешно принята!\nВот ваши данные:\nназвание карточки: {placename}\nобъект продажи: {placething}\nописание: {placedescription}\класс: {placeclass}\nЧтобы выйти из заполнения анкеты пропишите любой символ, например ! и отправьте команду /menu", reply_markup=keyboard_menu)
+            print("человек завершил выставление товара! Время:", time.ctime())
+
 
             await state.finish()
+
 
         # Запуск сервера
         executor.start_polling(self.dp, skip_updates=True)
