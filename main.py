@@ -68,12 +68,12 @@ class MyBot(FSMContext,StatesGroup):
     def start(self):
         #элементы клавиатуры (не к регистрации) не инлайн
         help_button = KeyboardButton('/help')
-        faq_button = KeyboardButton('/faq')
+        #faq_button = KeyboardButton('/faq')
         info_button = KeyboardButton('/info')
         add_button = KeyboardButton('/addplace')
         price_button = KeyboardButton('/checkplaces')        
         main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-        main_keyboard.add(help_button,info_button, add_button, price_button, faq_button)
+        main_keyboard.add(help_button,info_button, add_button, price_button)
         inline_btn_1 = InlineKeyboardButton('report', callback_data='report')
         inline_btn_2 = InlineKeyboardButton('rep-', callback_data='repdw')
         inline_btn_3 = InlineKeyboardButton('rep+', callback_data='repup')
@@ -84,9 +84,10 @@ class MyBot(FSMContext,StatesGroup):
         @self.dp.message_handler(commands=['start'])
         async def hello(message: types.message):
             await message.answer('привет напиши /help что бы узнать список команд.')
-        @self.dp.message_handler(commands=['faq'])
-        async def hello(message: types.message):
-            await message.answer('привет напиши /help что бы узнать список команд.')
+
+        #@self.dp.message_handler(commands=['faq'])
+        #async def hello(message: types.message):
+        #    await message.answer('что кнопки под карточками ')
 
         @self.dp.message_handler(commands=['menu'])
         async def hello(message: types.message):
@@ -94,7 +95,7 @@ class MyBot(FSMContext,StatesGroup):
 
         @self.dp.message_handler(commands=['help'])
         async def hello(message: types.message):
-            await message.answer('что умеет этот бот???\n/info - о нас.\n/reg - зарегестрироваться на площадке\n/addplace - добавить товар на площадку\nесли вы нашли ошибку просто очистите чат с ботом и все!', reply_markup=main_keyboard)
+            await message.answer('что умеет этот бот???\n/info - о нас.\naddplace - добавить товар на площадку.\n/checkplaces - посмортеть товары\nесли вы нашли ошибку просто очистите чат с ботом и все!', reply_markup=main_keyboard)
     
         @self.dp.message_handler(commands=['info'])
         async def hello(message: types.message):
@@ -107,6 +108,8 @@ class MyBot(FSMContext,StatesGroup):
     
         @self.dp.callback_query_handler(lambda c: c.data == 'report')
         async def process_callback_button1(callback_query: types.CallbackQuery):
+            conn = sqlite3.connect("marketdb")
+            cursor = conn.cursor()
             cursor.execute("UPDATE places SET placereports = placereports + 1")
             conn.commit()
             await callback_query.answer()
@@ -114,6 +117,8 @@ class MyBot(FSMContext,StatesGroup):
 
         @self.dp.callback_query_handler(lambda c: c.data == 'repup')
         async def process_callback_button2(callback_query: types.CallbackQuery):
+            conn = sqlite3.connect("marketdb")
+            cursor = conn.cursor()
             cursor.execute("UPDATE places SET placeraiting = placeraiting + 1")
             conn.commit()
             await callback_query.answer()
@@ -121,6 +126,8 @@ class MyBot(FSMContext,StatesGroup):
 
         @self.dp.callback_query_handler(lambda c: c.data == 'repdw')
         async def process_callback_button3(callback_query: types.CallbackQuery):
+            conn = sqlite3.connect("marketdb")
+            cursor = conn.cursor()
             cursor.execute("UPDATE places SET placeraiting = placeraiting - 1")
             conn.commit()
             await callback_query.answer()
