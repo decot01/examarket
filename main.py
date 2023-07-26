@@ -131,24 +131,34 @@ class MyBot(FSMContext,StatesGroup):
         async def get_random_line(message: types.Message):
             global last_line_index
 
-            cursor.execute("SELECT placename, placeowner, placething, placedescription, placeraiting, placeclass FROM places")
-            all_lines = cursor.fetchall()
+            # Создание соединения с базой данных
+            conn = sqlite3.connect("marketdb")
+            cursor = conn.cursor()
 
-            available_lines = [line for line in all_lines if line[0] not in printed_lines]
+            # Проверка, что соединение с базой данных открыто
+            if conn:
+                # Выполнение запроса SELECT
+                cursor.execute("SELECT placename, placeowner, placething, placedescription, placeraiting, placeclass FROM places")
+                all_lines = cursor.fetchall()
 
-            if available_lines:
-                if last_line_index >= len(available_lines):
-                    last_line_index = 0
+                available_lines = [line for line in all_lines if line[0] not in printed_lines]
 
-                next_line = available_lines[last_line_index]
+                if available_lines:
+                    if last_line_index >= len(available_lines):
+                        last_line_index = 0
 
-                line_message = f"Place Name: {next_line[0]}\nPlace Owner: {next_line[1]}\nPlace Thing: {next_line[2]}\nPlace Description: {next_line[3]}\nPlace Rating: {next_line[4]}\nPlace Class: {next_line[5]}"
+                    next_line = available_lines[last_line_index]
 
-                await message.answer(line_message, reply_markup=inline_kb1)
+                    line_message = f"Place Name: {next_line[0]}\nPlace Owner: {next_line[1]}\nPlace Thing: {next_line[2]}\nPlace Description: {next_line[3]}\nPlace Rating: {next_line[4]}\nPlace Class: {next_line[5]}"
 
-                last_line_index += 1
-            else:
-                await message.answer("No more lines available.")
+                    await message.answer(line_message, reply_markup=inline_kb1)
+
+                    last_line_index += 1
+                else:
+                    await message.answer("No more lines available.")
+
+                # Закрытие соединения с базой данных
+                conn.close()
 
     def addplace(self):
         menu_button = KeyboardButton('/menu')
